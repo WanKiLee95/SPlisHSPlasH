@@ -28,6 +28,10 @@ Elasticity_Peer2018::Elasticity_Peer2018(FluidModel *model) :
 	m_RL.resize(numParticles);
 	m_F.resize(numParticles);
 
+	m_cp.resize(numParticles);
+	m_k.resize(numParticles);
+	m_T.resize(numParticles);
+
 	m_iterations = 0;
 	m_maxIter = 100;
 	m_maxError = static_cast<Real>(1.0e-4);
@@ -118,6 +122,10 @@ void Elasticity_Peer2018::initValues()
 			}
 			m_restVolumes[i] = model->getMass(i) / density;
 			m_rotations[i].setIdentity();
+
+			m_k[i] = 100.0;
+			m_cp[i] = 0.5;
+			m_T[i] = 25.0;
 		}
 	}
 
@@ -149,6 +157,8 @@ void Elasticity_Peer2018::step()
 	VectorXr b(3 * numParticles);
 	VectorXr x(3 * numParticles);
 	VectorXr g(3 * numParticles);
+
+	computeHeat();
 
 	computeRotations();
 	computeRHS(b);
@@ -208,6 +218,55 @@ void Elasticity_Peer2018::performNeighborhoodSearchSort()
 
 	for (unsigned int i = 0; i < numPart; i++)
 		m_initial_to_current_index[m_current_to_initial_index[i]] = i;
+}
+
+void Elasticity_Peer2018::computeHeat()
+{
+	Simulation* sim = Simulation::getCurrent();
+	const unsigned int numParticles = m_model->numActiveParticles();
+	const unsigned int fluidModelIndex = m_model->getPointSetIndex();
+	FluidModel* model = m_model;
+	const Real dt = TimeManager::getCurrent()->getTimeStepSize();
+
+	for (int i = 0; i < (int)numParticles; i++)
+	{
+		const unsigned int i0 = m_current_to_initial_index[i];
+		const Vector3r& xi = m_model->getPosition(i);
+		const Vector3r& xi0 = m_model->getPosition0(i0);
+
+		const size_t numNeighbors = m_initialNeighbors[i0].size();
+
+		double k_i = m_k[i];
+		double rho_i = m_model->getDensity(i);
+		double T_i = m_T[i];
+		double cp_i = m_cp[i];
+
+		double grad_temperature = 0.0;
+
+		for (unsigned int j = 0; j < numNeighbors; j++)
+		{
+			const unsigned int neighborIndex = m_initial_to_current_index[m_initialNeighbors[i0][j]];
+			// get initial neighbor index considering the current particle order 
+			const unsigned int neighborIndex0 = m_initialNeighbors[i0][j];
+
+			const Vector3r& xj = model->getPosition(neighborIndex);
+			const Vector3r& xj0 = m_model->getPosition0(neighborIndex0);
+			const Vector3r xi_xj = xi - xj;
+			const Vector3r xi_xj_0 = xi0 - xj0;
+			double dist_ij = xi_xj.norm();
+
+			double k_j = m_k[j];
+			double T_j = m_T[j];
+			double rho_j = model->getDensity(neighborIndex);
+			double m_j = model->getMass(neighborIndex);
+
+			const Vector3r correctedKernel = m_RL[i] * sim->gradW(xi_xj_0);
+
+			grad_temperature += 4.0 / (cp_i * rho_i * rho_j) * k_i * k_j / (k_i + k_j) * (T_i - T_j) / (dist_ij * dist_ij) * xi_xj.dot(correctedKernel);
+		}
+
+		m_T[i] += grad_temperature * dt;
+	}
 }
 
 void Elasticity_Peer2018::computeRotations()

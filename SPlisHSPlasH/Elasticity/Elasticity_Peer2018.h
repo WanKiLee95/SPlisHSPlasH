@@ -32,6 +32,11 @@ namespace SPH
 		std::vector<Matrix3r> m_L;
 		std::vector<Matrix3r> m_RL;
 		std::vector<Matrix3r> m_F;
+
+		std::vector<Real> m_cp;
+		std::vector<Real> m_k;
+		std::vector<Real> m_T;
+
 		unsigned int m_iterations;
 		unsigned int m_maxIter;
 		Real m_maxError;
@@ -40,6 +45,7 @@ namespace SPH
 
 		void initValues();
 		void computeMatrixL();
+		void computeHeat();
 		void computeRotations();
 		void computeRHS(VectorXr & rhs);	
 
