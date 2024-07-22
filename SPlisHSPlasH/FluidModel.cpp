@@ -69,6 +69,7 @@ FluidModel::FluidModel() :
 	addField({ "position0", FieldType::Vector3, [&](const unsigned int i) -> Real* { return &getPosition0(i)[0]; } });
 	addField({ "velocity", FieldType::Vector3, [&](const unsigned int i) -> Real* { return &getVelocity(i)[0]; }, true });
 	addField({ "density", FieldType::Scalar, [&](const unsigned int i) -> Real* { return &getDensity(i); }, false });
+	addField({ "temperature", FieldType::Scalar, [&](const unsigned int i) -> Real* { return &getTemperature(i); }, false });
 }
 
 FluidModel::~FluidModel(void)
@@ -265,6 +266,7 @@ void FluidModel::resizeFluidParticles(const unsigned int newSize)
 	m_a.resize(newSize);
 	m_masses.resize(newSize);
 	m_density.resize(newSize);
+	m_T.resize(newSize);
 	m_particleId.resize(newSize);
 	m_objectId.resize(newSize);
 	m_objectId0.resize(newSize);
@@ -280,6 +282,7 @@ void FluidModel::releaseFluidParticles()
 	m_a.clear();
 	m_masses.clear();
 	m_density.clear();
+	m_T.clear();
 	m_particleId.clear();
 	m_objectId.clear();
 	m_objectId0.clear();
@@ -305,6 +308,7 @@ void FluidModel::initModel(const std::string &id, const unsigned int nFluidParti
 			getVelocity(i) = fluidVelocities[i];
 			getAcceleration(i).setZero();
 			m_density[i] = 0.0;
+			m_T[i] = 0.0;
 			m_particleId[i] = i;
 			m_objectId[i] = fluidObjectIds[i];
 			m_objectId0[i] = fluidObjectIds[i];

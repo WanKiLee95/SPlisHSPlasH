@@ -116,6 +116,7 @@ namespace SPH
 			std::vector<Vector3r> m_x;
 			std::vector<Vector3r> m_v;
 			std::vector<Real> m_density;
+			std::vector<Real> m_T;
 			std::vector<unsigned int> m_particleId;
 			std::vector<unsigned int> m_objectId;
 			std::vector<unsigned int> m_objectId0;
@@ -346,6 +347,21 @@ namespace SPH
 			FORCE_INLINE void setDensity(const unsigned int i, const Real &val)
 			{
 				m_density[i] = val;
+			}
+
+			FORCE_INLINE const Real& getTemperature(const unsigned int i) const
+			{
+				return m_T[i];
+			}
+
+			FORCE_INLINE Real& getTemperature(const unsigned int i)
+			{
+				return m_T[i];
+			}
+
+			FORCE_INLINE void setTemperature(const unsigned int i, const Real& val)
+			{
+				m_T[i] = val;
 			}
 
 			FORCE_INLINE unsigned int& getParticleId(const unsigned int i)

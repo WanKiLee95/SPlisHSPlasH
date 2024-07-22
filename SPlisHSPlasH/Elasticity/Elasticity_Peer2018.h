@@ -35,7 +35,8 @@ namespace SPH
 
 		std::vector<Real> m_cp;
 		std::vector<Real> m_k;
-		std::vector<Real> m_T;
+		//std::vector<Real> m_T;
+		std::vector<Vector3r> m_initDistVec;
 
 		unsigned int m_iterations;
 		unsigned int m_maxIter;
@@ -46,6 +47,7 @@ namespace SPH
 		void initValues();
 		void computeMatrixL();
 		void computeHeat();
+		void updateInitDistVec();
 		void computeRotations();
 		void computeRHS(VectorXr & rhs);	
 
