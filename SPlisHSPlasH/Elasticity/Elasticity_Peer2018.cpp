@@ -130,14 +130,17 @@ void Elasticity_Peer2018::initValues()
 			if (xi[0] < -1.5)
 			{
 				model->setTemperature(i, 1000.0);
+				printf("temperature index = %d\n", i);
+
 				//m_T[i] = 1000.0;
 			}
 			else {
 				model->setTemperature(i, 25.0);
 				//m_T[i] = 25.0;
 			}
-			m_k[i] = 5000.0;
+			m_k[i] = 50000.0;
 			m_cp[i] = 0.5;
+
 		}
 	}
 
@@ -243,49 +246,59 @@ void Elasticity_Peer2018::computeHeat()
 	FluidModel* model = m_model;
 	const Real dt = TimeManager::getCurrent()->getTimeStepSize();
 
-	for (int i = 0; i < (int)numParticles; i++)
+	#pragma omp parallel default(shared)
 	{
-		const unsigned int i0 = m_current_to_initial_index[i];
-		const Vector3r& xi = m_model->getPosition(i);
-		const Vector3r& xi0 = m_model->getPosition0(i0);
+#pragma omp for schedule(static) 
 
-		const size_t numNeighbors = m_initialNeighbors[i0].size();
-
-		double k_i = m_k[i];
-		double rho_i = m_model->getDensity(i);
-		//double T_i = m_T[i];
-		double T_i = m_model->getTemperature(i);
-		double cp_i = m_cp[i];
-
-		double grad_temperature = 0.0;
-
-		for (unsigned int j = 0; j < numNeighbors; j++)
+		for (int i = 0; i < (int)numParticles; i++)
 		{
-			const unsigned int neighborIndex = m_initial_to_current_index[m_initialNeighbors[i0][j]];
-			// get initial neighbor index considering the current particle order 
-			const unsigned int neighborIndex0 = m_initialNeighbors[i0][j];
+			const unsigned int i0 = m_current_to_initial_index[i];
+			const Vector3r& xi = m_model->getPosition(i);
+			const Vector3r& xi0 = m_model->getPosition0(i0);
 
-			const Vector3r& xj = model->getPosition(neighborIndex);
-			const Vector3r& xj0 = m_model->getPosition0(neighborIndex0);
-			const Vector3r xi_xj = xi - xj;
-			const Vector3r xi_xj_0 = xi0 - xj0;
-			double dist_ij = xi_xj.norm();
+			const size_t numNeighbors = m_initialNeighbors[i0].size();
 
-			double k_j = m_k[j];
-			//double T_j = m_T[j];
-			double T_j = m_model->getTemperature(neighborIndex);
-			double rho_j = model->getDensity(neighborIndex);
-			double m_j = model->getMass(neighborIndex);
+			double k_i = m_k[i];
+			double rho_i = m_model->getDensity(i);
+			//double T_i = m_T[i];
+			double T_i = m_model->getTemperature(i);
+			double cp_i = m_cp[i];
 
-			const Vector3r correctedKernel = m_L[i] * sim->gradW(xi_xj_0);
+			double grad_temperature = 0.0;
 
-			grad_temperature += 4.0 / (cp_i * rho_i * rho_j * rho_j) * k_i * k_j / (k_i + k_j) * (T_i - T_j) / (dist_ij * dist_ij) * xi_xj.dot(correctedKernel);
+			for (unsigned int j = 0; j < numNeighbors; j++)
+			{
+				const unsigned int neighborIndex = m_initial_to_current_index[m_initialNeighbors[i0][j]];
+				// get initial neighbor index considering the current particle order 
+				const unsigned int neighborIndex0 = m_initialNeighbors[i0][j];
+
+				const Vector3r& xj = model->getPosition(neighborIndex);
+				const Vector3r& xj0 = m_model->getPosition0(neighborIndex0);
+				const Vector3r xi_xj = xi - xj;
+				const Vector3r xi_xj_0 = xi0 - xj0;
+				double dist_ij = xi_xj.norm();
+
+				double k_j = m_k[j];
+				//double T_j = m_T[j];
+				double T_j = m_model->getTemperature(neighborIndex);
+				double rho_j = model->getDensity(neighborIndex);
+				double m_j = model->getMass(neighborIndex);
+
+				const Vector3r correctedKernel = m_L[i] * sim->gradW(xi_xj_0);
+
+				grad_temperature += 4.0 / (cp_i * rho_i * rho_j * rho_j) * k_i * k_j / (k_i + k_j) * (T_i - T_j) / (dist_ij * dist_ij) * xi_xj.dot(correctedKernel);
+			}
+
+			//m_T[i] += grad_temperature * dt;
+			T_i += grad_temperature * dt;
+			m_model->setTemperature(i, T_i);
+
+			//if (xi[0] < -1.5)
+			//{
+			//	m_model->setTemperature(i, 1000.0);
+			//}
+			//printf("Temperature = %lf, num of particle = %d\n", T_i, i);
 		}
-
-		//m_T[i] += grad_temperature * dt;
-		T_i += grad_temperature * dt;
-		m_model->setTemperature(i, T_i);
-		printf("Temperature = %lf, num of particle = %d\n", T_i, i);
 	}
 }
 

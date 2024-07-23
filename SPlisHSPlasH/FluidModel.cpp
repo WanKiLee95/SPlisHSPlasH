@@ -352,6 +352,7 @@ void FluidModel::performNeighborhoodSearchSort()
 	d.sort_field(&m_particleId[0]);
 	d.sort_field(&m_objectId[0]);
 	d.sort_field(&m_particleState[0]);
+	d.sort_field(&m_T[0]);
 
 	if (m_viscosity)
 		m_viscosity->performNeighborhoodSearchSort();
