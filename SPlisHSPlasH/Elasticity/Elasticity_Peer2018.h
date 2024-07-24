@@ -36,7 +36,7 @@ namespace SPH
 		std::vector<Real> m_cp;
 		std::vector<Real> m_k;
 		//std::vector<Real> m_T;
-		std::vector<Vector3r> m_initDistVec;
+		std::vector<std::vector<Vector3r>> m_initDistVec;
 
 		unsigned int m_iterations;
 		unsigned int m_maxIter;

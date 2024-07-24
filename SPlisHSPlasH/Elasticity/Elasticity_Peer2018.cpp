@@ -109,6 +109,8 @@ void Elasticity_Peer2018::initValues()
 			// only neighbors in same phase will influence elasticity
 			const unsigned int numNeighbors = sim->numberOfNeighbors(fluidModelIndex, fluidModelIndex, i);
 			m_initialNeighbors[i].resize(numNeighbors);
+			m_initDistVec[i].resize(numNeighbors);
+
 			for (unsigned int j = 0; j < numNeighbors; j++)
 				m_initialNeighbors[i][j] = sim->getNeighbor(fluidModelIndex, fluidModelIndex, i, j);
 
@@ -121,7 +123,7 @@ void Elasticity_Peer2018::initValues()
 				const Vector3r& xj = model->getPosition(neighborIndex); 
 				density += model->getMass(neighborIndex) * sim->W(xi - xj);
 
-				m_initDistVec[i] = xi - xj;
+				m_initDistVec[i][j] = xi - xj;
 			}
 			m_restVolumes[i] = model->getMass(i) / density;
 			m_rotations[i].setIdentity();
@@ -232,7 +234,7 @@ void Elasticity_Peer2018::performNeighborhoodSearchSort()
 	d.sort_field(&m_rotations[0]);
 	d.sort_field(&m_current_to_initial_index[0]);
 	d.sort_field(&m_L[0]);
-	d.sort_field(&m_initDistVec[0]);
+	//d.sort_field(&m_initDistVec[0]);
 
 	for (unsigned int i = 0; i < numPart; i++)
 		m_initial_to_current_index[m_current_to_initial_index[i]] = i;
@@ -275,7 +277,8 @@ void Elasticity_Peer2018::computeHeat()
 				const Vector3r& xj = model->getPosition(neighborIndex);
 				const Vector3r& xj0 = m_model->getPosition0(neighborIndex0);
 				const Vector3r xi_xj = xi - xj;
-				const Vector3r xi_xj_0 = xi0 - xj0;
+				//const Vector3r xi_xj_0 = xi0 - xj0;
+				const Vector3r xi_xj_0 = m_initDistVec[i0][j];
 				double dist_ij = xi_xj.norm();
 
 				double k_j = m_k[j];
@@ -343,8 +346,8 @@ void Elasticity_Peer2018::computeRotations()
 				const Vector3r &xj = model->getPosition(neighborIndex);
 				const Vector3r &xj0 = m_model->getPosition0(neighborIndex0);
 				const Vector3r xj_xi = xj - xi;
-				const Vector3r xi_xj_0 = xi0 - xj0;
-				//const Vector3r xi_xj_0 = m_initDistVec[i];
+				//const Vector3r xi_xj_0 = xi0 - xj0;
+				const Vector3r xi_xj_0 = m_initDistVec[i0][j];
 
 				const Vector3r correctedKernel = m_L[i] * sim->gradW(xi_xj_0);
 				F += m_restVolumes[neighborIndex] * xj_xi * correctedKernel.transpose();
@@ -394,7 +397,8 @@ void Elasticity_Peer2018::computeMatrixL()
 				const unsigned int neighborIndex0 = m_initialNeighbors[i0][j];
 
 				const Vector3r &xj0 = m_model->getPosition0(neighborIndex0);
-				const Vector3r xj_xi_0 = xj0 - xi0;
+				//const Vector3r xj_xi_0 = xj0 - xi0;
+				const Vector3r xj_xi_0 = -m_initDistVec[i0][j];
 				const Vector3r gradW = sim->gradW(xj_xi_0);
 
 				// minus because gradW(xij0) == -gradW(xji0)
@@ -455,9 +459,9 @@ void Elasticity_Peer2018::computeRHS(VectorXr & rhs)
  				const Vector3r &xj = model->getPosition(neighborIndex);
  				const Vector3r &xj0 = m_model->getPosition0(neighborIndex0);
  				const Vector3r xj_xi = xj - xi;
- 				const Vector3r xi_xj_0 = xi0 - xj0;
-				//const Vector3r xi_xj_0 = m_initDistVec[i];
- 				const Vector3r correctedRotatedKernel = m_RL[i] * sim->gradW(xi_xj_0);
+ 				//const Vector3r xi_xj_0 = xi0 - xj0;
+				const Vector3r xi_xj_0 = m_initDistVec[i0][j];
+				const Vector3r correctedRotatedKernel = m_RL[i] * sim->gradW(xi_xj_0);
  				m_F[i] += m_restVolumes[neighborIndex] * (xj_xi - m_rotations[i]*(xj0-xi0)) * correctedRotatedKernel.transpose();
  			}
 
@@ -510,7 +514,8 @@ void Elasticity_Peer2018::computeRHS(VectorXr & rhs)
 				const unsigned int neighborIndex0 = m_initialNeighbors[i0][j];
 
 				const Vector3r &xj0 = m_model->getPosition0(neighborIndex0);
-				const Vector3r xi_xj_0 = xi0 - xj0;
+				//const Vector3r xi_xj_0 = xi0 - xj0;
+				const Vector3r xi_xj_0 = m_initDistVec[i0][j];
 				const Vector3r correctedRotatedKernel_i = m_RL[i] * sim->gradW(xi_xj_0);
 				const Vector3r correctedRotatedKernel_j = -m_RL[neighborIndex] * sim->gradW(xi_xj_0);
 				Vector3r PWi, PWj;
@@ -544,7 +549,8 @@ void Elasticity_Peer2018::computeRHS(VectorXr & rhs)
 					if (xixj_l > 1.0e-6)
 					{
 						// Note: Ganzenmueller defines xij = xj-xi
-						const Vector3r xi_xj_0 = -(xi0 - xj0);
+						//const Vector3r xi_xj_0 = -(xi0 - xj0);
+						const Vector3r xi_xj_0 = -m_initDistVec[i0][j];
 						const Real xixj0_l2 = xi_xj_0.squaredNorm();
 						const Real W0 = sim->W(xi_xj_0);
 
@@ -581,6 +587,7 @@ void Elasticity_Peer2018::matrixVecProd(const Real* vec, Real *result, void *use
 	const auto &current_to_initial_index = elasticity->m_current_to_initial_index;
 	const auto &initial_to_current_index = elasticity->m_initial_to_current_index;
 	const auto &initialNeighbors = elasticity->m_initialNeighbors;
+	const auto &initDistVec = elasticity->m_initDistVec;
 	const auto &restVolumes = elasticity->m_restVolumes;
 	const auto &rotations = elasticity->m_rotations;
 	const auto &L = elasticity->m_L;
@@ -620,7 +627,8 @@ void Elasticity_Peer2018::matrixVecProd(const Real* vec, Real *result, void *use
  				const Vector3r &pj = Eigen::Map<const Vector3r>(&vec[3 * neighborIndex], 3);
  				const Vector3r &xj0 = model->getPosition0(neighborIndex0);
  				const Vector3r pj_pi = pj - pi;
- 				const Vector3r xi_xj_0 = xi0 - xj0;
+ 				//const Vector3r xi_xj_0 = xi0 - xj0;
+				const Vector3r xi_xj_0 = initDistVec[i0][j];
  				const Vector3r correctedRotatedKernel = RL[i] * sim->gradW(xi_xj_0);
 				nablaU += restVolumes[neighborIndex] * pj_pi * correctedRotatedKernel.transpose();
  			}
@@ -672,7 +680,8 @@ void Elasticity_Peer2018::matrixVecProd(const Real* vec, Real *result, void *use
 					const unsigned int neighborIndex0 = initialNeighbors[i0][j];
 
 					const Vector3r& xj0 = model->getPosition0(neighborIndex0);
-					const Vector3r xi_xj_0 = xi0 - xj0;
+					//const Vector3r xi_xj_0 = xi0 - xj0;
+					const Vector3r xi_xj_0 = initDistVec[i0][j];
 					const Vector3r gradW = sim->gradW(xi_xj_0);
 					const Vector3r correctedRotatedKernel_i = RL[i] * gradW;
 					const Vector3r correctedRotatedKernel_j = -RL[neighborIndex] * gradW;
